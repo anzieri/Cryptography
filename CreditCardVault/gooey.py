@@ -6,14 +6,15 @@ from customtkinter import *
 import mysql.connector
 import sqlite3
 import dbconnect
+from CTkTable import *
 
-
+# The key is "RunItBack" 
 class App(CTk):
     def __init__(self):
         #Connect first 
         #dbconnect.connect()
         self.conn = mysql.connector.connect(host='localhost', port=3307,database='creditcard_vault', user='root',password='')
-        self.cryptMe = AESCipher()
+        self.cryptMe = AESCipher("RunItBack")
         #The GUI starts here 
         self.root = CTk()
         self.root.title("VAULT")
@@ -45,7 +46,7 @@ class App(CTk):
                 self.topframe = CTkFrame(master=self.topnotch)
                 self.topframe.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
                 self.topnotch.focus()
-                self.WelcomeText = CTkLabel(master=self.topframe, text = "Welcome! Please login as the appropriate person.", justify=RIGHT)
+                self.WelcomeText = CTkLabel(master=self.topframe, text = "Welcome! Proceed by filling in relevant details.", justify=RIGHT)
                 self.WelcomeText.grid(row = 0, columnspan = 2, padx = 20, pady = (20,0))
 
                 self.userName_label = CTkLabel(master=self.topframe, text = "Full Name:", justify=RIGHT)
@@ -116,6 +117,8 @@ class App(CTk):
             mycursor = self.conn.cursor()
             insert = "INSERT INTO creditcard_vault.client (fullname, password, email, phoneNo, address, country) VALUES (%s, %s, %s, %s, %s, %s)"
             values = (self.userName.get(), self.cryptMe.hash(self.password.get()), self.email.get(), self.phone.get(), self.address.get(), self.country.get())
+            # insert = "INSERT INTO creditcard_vault.admin (fullname, password, email, role) VALUES (%s, %s, %s, %s)"
+            # values = (self.userName.get(), self.cryptMe.hash(self.password.get()), self.email.get(), 1)
             mycursor.execute( insert, values)
             self.conn.commit()
         except mysql.connector.Error as e:
@@ -134,7 +137,7 @@ class App(CTk):
                 self.regnotch.focus()
                 self.SuccessText = CTkLabel(master=self.regframe, text = "Successfully Registered an account. Would you like to store your card?", justify=RIGHT)
                 self.SuccessText.grid(row = 0, columnspan = 2, padx = 20, pady = (20,0))
-                self.cardBtn = CTkButton(master=self.regframe, text= "Store Card", command= lambda: self.CardInfo)
+                self.cardBtn = CTkButton(master=self.regframe, text= "Store Card", command= self.CardInfo)
                 self.cardBtn.grid(row = 2 , column = 1 ,padx = 20, pady = (20,0))
                 self.exitBtn = CTkButton(master=self.regframe, text= "Exit", command= lambda: self.root.destroy())
                 self.exitBtn.grid(row = 3 , column = 1 ,padx = 20, pady = (20,0))
@@ -221,6 +224,7 @@ class App(CTk):
             mycursor.execute(passCheck2, passWord)
             if mycursor.rowcount==1:
                 print("Admin Authenticated ")
+                self.adminPanel()
             else:
                 print("Admin password incorrect")
 
@@ -242,7 +246,122 @@ class App(CTk):
         self.initialText.grid(row = 0, columnspan = 1, padx = 20, pady = (20,0))
         self.cardBtn = CTkButton(master=self.bubbleframe, text= "Store Card", command= self.CardInfo)
         self.cardBtn.grid(row = 2 , column = 1 ,padx = 20, pady = (20,0))
+        self.viewDetails = CTkButton(master=self.bubbleframe, text= "View Details", command= self.ViewSelf)
+        self.viewDetails.grid(row = 3 , column = 1 ,padx = 20, pady = (20,0))
+        self.viewCard = CTkButton(master=self.bubbleframe, text= "View Card Number", command= self.viewCardNum)
+        self.viewCard.grid(row = 4 , column = 1 ,padx = 20, pady = (20,0))
 
+    def adminPanel(self):
+        self.bubble = CTkToplevel()
+        self.bubble.title("Admin Panel")
+        self.bubble.geometry("400x300")
+        self.bubble.grid_rowconfigure(0, weight=1)
+        self.bubble.grid_columnconfigure(0, weight=1)
+        self.bubbleframe = CTkFrame(master=self.bubble)
+        self.bubbleframe.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
+        self.bubble.focus()
+        self.initialText = CTkLabel(master=self.bubbleframe, text = "Welcome Back! Amara.",  justify=RIGHT)
+        self.initialText.grid(row = 0, columnspan = 1, padx = 20, pady = (20,0))
+        self.cardBtn = CTkButton(master=self.bubbleframe, text= "View Users", command= self.ViewUsers)
+        self.cardBtn.grid(row = 2 , column = 0,padx = 20, pady = (20,0))
+        self.bubble.attributes('-topmost', True)
+
+    def ViewSelf(self):
+        mycursor = self.conn.cursor()
+        select = "SELECT client_id FROM client WHERE email = %s"
+        email = [self.email.get()]
+        mycursor.execute(select, email)
+        result = mycursor.fetchone()
+        id = result
+        print(id)
+        #query = "SELECT client.fullname, client.email, client.phoneNo, creditcard.cardName, creditcard.cardNo, creditcard.expiration_date, FROM client, creditcard" # WHERE creditcard.client_id = %s" 
+        query = "SELECT client.fullname, client.email, client.phoneNo, creditcard.cardName, creditcard.cardNo, creditcard.expiration_date FROM client, creditcard WHERE creditcard.client_id = client.client_id AND client.client_id = %s"
+        mycursor.execute(query,id)
+        result = mycursor.fetchall()
+        column_names = [column[0] for column in mycursor.description]
+        tableValues = [["Fullname", "Email", "PhoneNo", "Card Name", "Card Number", "Expiration Date"]] + result
+        if result is not None:
+            # GUI portion using customtkinter (assuming you already have it installed)
+
+            for x in result:
+                print(x)
+            self.view = CTkToplevel()
+            self.view.title("User List")
+            self.view.geometry("1200x400")
+            self.view.grid_rowconfigure(0, weight=1)  # configure grid system
+            self.view.grid_columnconfigure(0, weight=1)
+            self.viewframe = CTkFrame(master=self.view)
+            self.viewframe.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
+            self.view.focus() 
+            table = CTkTable(master=self.viewframe, row=2, values=tableValues)  # Use fetched data headings=column_names,
+            table.pack(expand=True, fill="both", padx=20, pady=20)
+            self.view.attributes('-topmost', True)
+
+    def viewCardNum(self):
+
+        mycursor = self.conn.cursor()
+        select = "SELECT client_id FROM client WHERE email = %s"
+        email = [self.email.get()]
+        mycursor.execute(select, email)
+        result = mycursor.fetchone()
+        id = result
+        mycursor = self.conn.cursor()
+        select = "SELECT cardNo,token FROM creditcard WHERE client_id = %s"
+        mycursor.execute(select, id)
+        result = mycursor.fetchone()
+        anything = result[0]
+        tokenNo = result[1]
+        words = "Use this token to make purchases: " + tokenNo
+        print(result[0], result[1])
+        card = self.cryptMe.decrypt(anything)
+        NumberWithWords = "Card Number: " + card
+
+        popup = CTkToplevel(self.bubble)
+        popup.title("Card Number")
+        popup.geometry("700x300")
+        popup.grid_rowconfigure(0, weight=1)
+        popup.grid_columnconfigure(0, weight=1)
+        popupframe = CTkFrame(master=popup)
+        popupframe.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
+        popup.focus()
+        popup.attributes('-topmost', True)
+        cardNum = CTkLabel(master=popupframe, text = NumberWithWords,  justify=RIGHT)
+        cardNum.grid(row = 1, columnspan = 1, padx = 20, pady = (20,0))
+        token = CTkLabel(master=popupframe, text = words ,  justify=RIGHT)
+        token.grid(row = 2, columnspan = 1, padx = 20, pady = (20,0))
+
+
+    def ViewUsers(self):
+        mycursor = self.conn.cursor()
+        select = "SELECT * FROM client"
+        query = "SELECT client_id, fullname, email, phoneNo, updated_at FROM client" 
+
+        mycursor.execute(query)
+        result = mycursor.fetchall()
+        column_names = [column[0] for column in mycursor.description]
+        # Fetch data from the database
+        tabValues = [["Client ID", "Fullname", "Email", "PhoneNo", "Updated Logs"]] + result
+        if result is not None:
+            # GUI portion using customtkinter (assuming you already have it installed)
+
+            for x in result:
+                print(x)
+            self.view = CTkToplevel(self.bubble)
+            self.view.title("User List")
+            self.view.geometry("800x600")
+            self.view.grid_rowconfigure(0, weight=1)  # configure grid system
+            self.view.grid_columnconfigure(0, weight=1)
+            self.viewframe = CTkFrame(master=self.view)
+            self.viewframe.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
+            self.view.focus() 
+            table = CTkTable(master=self.viewframe,  values=tabValues)  # Use fetched data headings=column_names,
+            table.pack(expand=True, fill="both", padx=20, pady=20)
+            self.view.attributes('-topmost', True)
+            
+        else:
+            print("Error fetching data. Please check connection and query.")
+        # for x in result:
+        #     print(x)
 
     def submitCard(self):
         mycursor = self.conn.cursor()
@@ -258,36 +377,37 @@ class App(CTk):
 
         print("Card Submitted")
 
+    
     def login(self):
             if self.root.winfo_exists():
-                topnotch = CTkToplevel(self.root)
-                topnotch.title("User Login")
-                topnotch.geometry("500x200")
-                topnotch.grid_rowconfigure(0, weight=1)  # configure grid system
-                topnotch.grid_columnconfigure(0, weight=1)
-                topframe = CTkFrame(master=topnotch)
-                topframe.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
-                topnotch.focus()
+                self.loginPanel = CTkToplevel(self.root)
+                self.loginPanel.title("User Login")
+                self.loginPanel.geometry("500x200")
+                self.loginPanel.grid_rowconfigure(0, weight=1)  # configure grid system
+                self.loginPanel.grid_columnconfigure(0, weight=1)
+                self.logframe = CTkFrame(master=self.loginPanel)
+                self.logframe.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
+                self.loginPanel.focus()
 
-                email_label = CTkLabel(master=topframe, text = "Email: ", justify=RIGHT)
+                email_label = CTkLabel(master=self.logframe, text = "Email: ", justify=RIGHT)
                 email_label.grid(row = 0 , column = 0 ,padx = 20, pady = (20,0) )
 
-                self.email = CTkEntry(master=topframe, placeholder_text="Enter your Email", width=200, height=25, border_width=2,corner_radius=10)
+                self.email = CTkEntry(master=self.logframe, placeholder_text="Enter your Email", width=200, height=25, border_width=2,corner_radius=10)
                 self.email.grid(row = 0 , column = 1 , padx = 20 , pady = (20,0))
 
-                password_label = CTkLabel(master=topframe, text = "Password: ", justify=RIGHT)
+                password_label = CTkLabel(master=self.logframe, text = "Password: ", justify=RIGHT)
                 password_label.grid(row = 1 , column = 0 ,padx = 20 )
 
-                self.password = CTkEntry(master=topframe, placeholder_text="eg. myPassword ", width=200, height=25, border_width=2,corner_radius=10)
+                self.password = CTkEntry(master=self.logframe, placeholder_text="eg. myPassword ", width=200, height=25, border_width=2,corner_radius=10)
                 self.password.grid(row = 1 , column = 1 , padx = 20 )
 
-                label = CTkLabel(master=topframe, text = "", justify=RIGHT)
+                label = CTkLabel(master=self.logframe, text = "", justify=RIGHT)
                 label.grid(row = 3 , column = 1 ,padx = 20 )
 
-                self.SubmitBtn = CTkButton(master=topframe, text= "Login", command= self.submission)
+                self.SubmitBtn = CTkButton(master=self.logframe, text= "Login", command= self.submission)
                 self.SubmitBtn.grid(row = 2 , column = 1 ,padx = 20, pady = (20,0))
 
-                topnotch.attributes('-topmost', True)
+                self.loginPanel.attributes('-topmost', True)
 
             else:
                 new_window = CTkToplevel()
